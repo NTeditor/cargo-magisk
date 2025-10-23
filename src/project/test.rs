@@ -15,4 +15,39 @@ fn target_enum_to_string(#[case] target: Target, #[case] expected: String) {
     assert_eq!(target_str, expected);
 }
 
-struct MockProjectProvider;
+#[rstest]
+fn default_project_get_project_path() {
+    let provider = Box::new(MockManifest {});
+    let project = DefaultProject::new(Target::Arm64V8a, true, provider);
+    let project_path = project.get_project_path().unwrap();
+    assert_eq!(project_path.to_str().unwrap(), "/workspace");
+}
+
+#[rstest]
+#[case(
+    Target::Arm64V8a,
+    true,
+    "/workspace/target/aarch64-linux-android/release"
+)]
+#[case(
+    Target::Arm64V8a,
+    false,
+    "/workspace/target/aarch64-linux-android/debug"
+)]
+fn default_project_get_target_path(
+    #[case] target: Target,
+    #[case] release: bool,
+    #[case] expected: String,
+) {
+    let provider = Box::new(MockManifest {});
+    let project = DefaultProject::new(target, release, provider);
+    let target_path = project.get_target_path().unwrap();
+    assert_eq!(target_path.to_str().unwrap(), &expected);
+}
+
+struct MockManifest;
+impl ManifestProvider for MockManifest {
+    fn find_manifest_path(&self) -> Result<PathBuf> {
+        Ok(PathBuf::from("/workspace/Cargo.toml"))
+    }
+}

@@ -1,18 +1,48 @@
 #[cfg(test)]
 mod test;
 
-use std::path::PathBuf;
+use std::{env, path::PathBuf};
 
 use anyhow::{Result, bail};
 
 trait ProjectProvider {
     fn get_project_path(&self) -> Result<PathBuf>;
+    fn get_target_path(&self) -> Result<PathBuf>;
 }
 
-pub struct DefaultProvider {
+pub struct DefaultProject {
     target: Target,
     release: bool,
     provider: Box<dyn ManifestProvider>,
+}
+
+impl DefaultProject {
+    fn new(target: Target, release: bool, provider: Box<dyn ManifestProvider>) -> Self {
+        Self {
+            target,
+            release,
+            provider,
+        }
+    }
+}
+
+impl ProjectProvider for DefaultProject {
+    fn get_project_path(&self) -> Result<PathBuf> {
+        let mut result = self.provider.find_manifest_path()?;
+        if !result.pop() {
+            bail!("Failed get Cargo.toml parent");
+        }
+        Ok(result)
+    }
+
+    fn get_target_path(&self) -> Result<PathBuf> {
+        let mut result = self.get_project_path()?;
+        result.push("target");
+        result.push(self.target.to_string());
+        let build_type = if self.release { "release" } else { "debug" };
+        result.push(build_type);
+        Ok(result)
+    }
 }
 
 trait ManifestProvider {
@@ -20,10 +50,25 @@ trait ManifestProvider {
 }
 
 pub struct DefaultManifest;
+impl DefaultManifest {
+    fn new() -> Self {
+        Self {}
+    }
+}
 
 impl ManifestProvider for DefaultManifest {
     fn find_manifest_path(&self) -> Result<PathBuf> {
-        Ok(PathBuf::new())
+        let current_dir = env::current_dir()?;
+        let mut result = current_dir.join("Cargo.toml");
+        loop {
+            if result.exists() {
+                return Ok(result.to_path_buf());
+            }
+
+            if !result.pop() {
+                bail!("Cargo.toml not found");
+            }
+        }
     }
 }
 
