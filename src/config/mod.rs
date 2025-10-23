@@ -1,10 +1,10 @@
 #[cfg(test)]
 mod test;
 mod toml_types;
-use std::{fs, path::PathBuf, rc::Rc};
 
-use crate::project::{DefaultManifest, DefaultProject, ManifestProvider, ProjectProvider, Target};
+use crate::project::{ManifestProvider, ProjectProvider};
 use anyhow::Result;
+use std::{fmt::Display, fs, path::PathBuf, rc::Rc};
 
 #[derive(Debug)]
 pub struct Config {
@@ -13,14 +13,10 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn load(target: Target, release: bool) -> Result<Self> {
-        let manifest_provider: Rc<dyn ManifestProvider> = Rc::new(DefaultManifest::new());
-        let project_provider: Rc<dyn ProjectProvider> = Rc::new(DefaultProject::new(
-            target.clone(),
-            release,
-            manifest_provider.clone(),
-        ));
-
+    pub fn load(
+        manifest_provider: Rc<dyn ManifestProvider>,
+        project_provider: Rc<dyn ProjectProvider>,
+    ) -> Result<Self> {
         let manifest_path = manifest_provider.find_manifest_path()?;
         let manifest_content = fs::read_to_string(manifest_path)?;
         let config: toml_types::Manifest = toml::from_str(&manifest_content)?;
@@ -54,6 +50,20 @@ pub struct ModuleProp {
     pub author: String,
 }
 
+impl Display for ModuleProp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "id={}\n\
+             name={}\n\
+             author={}\n\
+             version={}\n\
+             versionCode={}\n",
+            self.id, self.name, self.author, self.version, self.version_code
+        )
+    }
+}
+
 #[derive(Debug)]
 pub struct Asset {
     pub source: PathBuf,
@@ -66,8 +76,8 @@ impl Asset {
         dest: String,
         provider: &Rc<dyn ProjectProvider>,
     ) -> Result<Self> {
-        let source = Self::parse_source(source, &provider)?;
-        let dest = Self::parse_dest(dest, &provider)?;
+        let source = Self::parse_source(source, provider)?;
+        let dest = Self::parse_dest(dest, provider)?;
         Ok(Self { source, dest })
     }
 

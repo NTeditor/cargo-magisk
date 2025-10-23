@@ -1,14 +1,14 @@
 #[cfg(test)]
 mod test;
 
-use std::{env, fmt::Debug, path::PathBuf, rc::Rc};
+use std::{
+    env,
+    fmt::{Debug, Display},
+    path::PathBuf,
+    rc::Rc,
+};
 
 use anyhow::{Result, bail};
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum Target {
-    Arm64V8a,
-}
 
 pub trait ProjectProvider: Debug {
     fn get_project_path(&self) -> Result<PathBuf>;
@@ -26,13 +26,6 @@ pub struct DefaultProject {
     provider: Rc<dyn ManifestProvider>,
 }
 
-#[derive(Clone, Debug)]
-pub struct DefaultManifest;
-
-impl Target {
-    pub const ARM64_V8A_STR: &str = "aarch64-linux-android";
-}
-
 impl DefaultProject {
     pub fn new(target: Target, release: bool, provider: Rc<dyn ManifestProvider>) -> Self {
         Self {
@@ -40,12 +33,6 @@ impl DefaultProject {
             release,
             provider,
         }
-    }
-}
-
-impl DefaultManifest {
-    pub fn new() -> Self {
-        Self {}
     }
 }
 
@@ -68,6 +55,15 @@ impl ProjectProvider for DefaultProject {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct DefaultManifest;
+
+impl DefaultManifest {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
 impl ManifestProvider for DefaultManifest {
     fn find_manifest_path(&self) -> Result<PathBuf> {
         let mut current_dir = env::current_dir()?;
@@ -84,11 +80,21 @@ impl ManifestProvider for DefaultManifest {
     }
 }
 
-impl ToString for Target {
-    fn to_string(&self) -> String {
-        match self {
+#[derive(Debug, PartialEq, Clone)]
+pub enum Target {
+    Arm64V8a,
+}
+
+impl Target {
+    pub const ARM64_V8A_STR: &str = "aarch64-linux-android";
+}
+
+impl Display for Target {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let result = match self {
             Self::Arm64V8a => Self::ARM64_V8A_STR.to_string(),
-        }
+        };
+        write!(f, "{}", result)
     }
 }
 
@@ -96,12 +102,8 @@ impl TryFrom<&str> for Target {
     type Error = anyhow::Error;
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         match value {
-            Self::ARM64_V8A_STR => {
-                return Ok(Self::Arm64V8a);
-            }
-            _ => {
-                bail!("Invaid target");
-            }
+            Self::ARM64_V8A_STR => Ok(Self::Arm64V8a),
+            _ => bail!("Invaid target"),
         }
     }
 }
