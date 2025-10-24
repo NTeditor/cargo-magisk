@@ -3,7 +3,9 @@ mod test;
 mod toml_types;
 
 use crate::project::{ManifestProvider, ProjectProvider};
-use anyhow::Result;
+use anyhow::{Context, Result, bail};
+use regex::Regex;
+use semver::Version;
 use std::{fmt::Display, fs, path::PathBuf, rc::Rc};
 
 #[derive(Debug)]
@@ -21,14 +23,12 @@ impl Config {
         let manifest_content = fs::read_to_string(manifest_path)?;
         let config: toml_types::Manifest = toml::from_str(&manifest_content)?;
 
-        let module_prop = ModuleProp {
-            id: config.package.metadata.magisk.id,
-            name: config.package.metadata.magisk.name,
-            version: config.package.version,
-            version_code: 0,
-            author: config.package.metadata.magisk.author,
-        };
-
+        let module_prop = ModuleProp::new(
+            config.package.metadata.magisk.id,
+            config.package.metadata.magisk.name,
+            config.package.version,
+            config.package.metadata.magisk.author,
+        )?;
         let mut assets: Vec<Asset> = vec![];
         for asset in config.package.metadata.magisk.assets {
             assets.push(Asset::try_new(asset.source, asset.dest, project_provider)?);
@@ -48,6 +48,65 @@ pub struct ModuleProp {
     pub version: String,
     pub version_code: u64,
     pub author: String,
+}
+
+impl ModuleProp {
+    pub fn new(id: String, name: String, version: String, author: String) -> Result<Self> {
+        let (version_valid, version_code) = Self::parse_version(&version)?;
+        if id.is_empty() {
+            bail!("'package.manifest.magisk.id' is empty");
+        }
+
+        if !Self::validate_id(&id)? {
+            bail!("Invalid 'package.manifest.magisk.id'");
+        }
+
+        if name.is_empty() {
+            bail!("'package.manifest.magisk.name' is empty");
+        }
+
+        if author.is_empty() {
+            bail!("'package.manifest.magisk.author' is empty");
+        }
+
+        Ok(Self {
+            id,
+            name,
+            version: version_valid,
+            version_code,
+            author,
+        })
+    }
+
+    fn validate_id(id: &str) -> Result<bool> {
+        let re = Regex::new("^[a-zA-Z][a-zA-Z0-9._-]+$")?;
+        Ok(re.is_match(id))
+    }
+
+    fn parse_version(version: &str) -> Result<(String, u64)> {
+        let ver = Version::parse(version)?;
+        let mut version_code = 0;
+        version_code += ver.major * 100_000_000;
+        version_code += ver.minor * 1_000_000;
+        version_code += ver.patch * 10_000;
+        if ver.pre.is_empty() {
+            version_code += ReleaseType::Stable as u64 * 100;
+        } else {
+            let pre_release_str = ver.pre.as_str();
+            let identifiers: Vec<&str> = pre_release_str.split('.').collect();
+            if identifiers.len() != 1 && identifiers.len() != 2 {
+                bail!("Invaild pre-version");
+            }
+            let type_str = identifiers[0];
+            let release_type = ReleaseType::try_from(type_str)?;
+            version_code += release_type as u64;
+            if let Some(value) = identifiers.get(1) {
+                let pre_code: u64 = value.parse().context("Pre-release number not u64")?;
+                version_code += pre_code * 100;
+            }
+        }
+        Ok((ver.to_string(), version_code))
+    }
 }
 
 impl Display for ModuleProp {
@@ -82,6 +141,9 @@ impl Asset {
     }
 
     fn parse_source(source: String, provider: &Rc<dyn ProjectProvider>) -> Result<PathBuf> {
+        if source.is_empty() {
+            bail!("source in Asset is empty");
+        }
         let result = match source.starts_with("target") {
             true => {
                 let mut target_path = provider.get_target_path()?;
@@ -99,9 +161,34 @@ impl Asset {
     }
 
     fn parse_dest(dest: String, provider: &Rc<dyn ProjectProvider>) -> Result<PathBuf> {
+        if dest.is_empty() {
+            bail!("dest in Asset is empty");
+        }
         let mut target_path = provider.get_target_path()?;
         target_path.push("magisk");
         target_path.push(dest);
         Ok(target_path)
+    }
+}
+
+#[derive(Debug)]
+#[repr(u64)]
+enum ReleaseType {
+    Alpha = 1,
+    Beta = 2,
+    Rc = 3,
+    Stable = 9,
+}
+
+impl TryFrom<&str> for ReleaseType {
+    type Error = anyhow::Error;
+
+    fn try_from(name: &str) -> Result<Self, Self::Error> {
+        match name {
+            "alpha" => Ok(ReleaseType::Alpha),
+            "beta" => Ok(ReleaseType::Beta),
+            "rc" => Ok(ReleaseType::Rc),
+            _ => bail!("Invalid build type: {}", name),
+        }
     }
 }
