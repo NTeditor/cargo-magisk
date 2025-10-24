@@ -52,22 +52,8 @@ pub struct ModuleProp {
 
 impl ModuleProp {
     pub fn new(id: String, name: String, version: String, author: String) -> Result<Self> {
+        Self::validate(&id, &name, &version, &author)?;
         let (version_valid, version_code) = Self::parse_version(&version)?;
-        if id.is_empty() {
-            bail!("'package.manifest.magisk.id' is empty");
-        }
-
-        if !Self::validate_id(&id)? {
-            bail!("Invalid 'package.manifest.magisk.id'");
-        }
-
-        if name.is_empty() {
-            bail!("'package.manifest.magisk.name' is empty");
-        }
-
-        if author.is_empty() {
-            bail!("'package.manifest.magisk.author' is empty");
-        }
 
         Ok(Self {
             id,
@@ -78,9 +64,29 @@ impl ModuleProp {
         })
     }
 
-    fn validate_id(id: &str) -> Result<bool> {
+    fn validate(id: &str, name: &str, version: &str, author: &str) -> Result<()> {
+        if id.is_empty() {
+            bail!("'package.manifest.magisk.id' is empty");
+        }
+
         let re = Regex::new("^[a-zA-Z][a-zA-Z0-9._-]+$")?;
-        Ok(re.is_match(id))
+        if !re.is_match(id) {
+            bail!("Invalid 'package.manifest.magisk.id'");
+        }
+
+        if name.is_empty() {
+            bail!("'package.manifest.magisk.name' is empty");
+        }
+
+        if version.is_empty() {
+            bail!("'package.manifest.magisk.version' is empty");
+        }
+
+        if author.is_empty() {
+            bail!("'package.manifest.magisk.author' is empty");
+        }
+
+        Ok(())
     }
 
     fn parse_version(version: &str) -> Result<(String, u64)> {
