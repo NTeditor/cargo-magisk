@@ -1,5 +1,7 @@
 use std::path::Path;
 
+use crate::project::Target;
+
 use super::*;
 use anyhow::Result;
 use rstest::rstest;
@@ -40,5 +42,13 @@ impl ProjectProvider for MockProject {
         let mut project_path = self.get_project_path().unwrap();
         project_path.push("target/arch/build_type");
         Ok(project_path)
+    }
+
+    fn get_target(&self) -> &Target {
+        &Target::Arm64V8a
+    }
+
+    fn is_release(&self) -> bool {
+        false
     }
 }

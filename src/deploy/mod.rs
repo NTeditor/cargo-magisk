@@ -1,6 +1,5 @@
 use crate::config::Config;
 use crate::project::ProjectProvider;
-use crate::project::Target;
 use anyhow::{Result, bail};
 use std::fmt::Debug;
 use std::fs;
@@ -15,24 +14,14 @@ pub trait BuildProvider: Debug {
     fn build(&self, cargo_build: Option<String>) -> Result<()>;
 }
 
-pub trait ModulePropProvider {
-    fn write_module_prop(&self, content: &str) -> Result<()>;
-}
-
 #[derive(Debug)]
 pub struct DefaultDeploy {
-    target: Target,
-    release: bool,
     project_provider: Rc<dyn ProjectProvider>,
 }
 
 impl DefaultDeploy {
-    pub fn new(target: Target, release: bool, project_provider: Rc<dyn ProjectProvider>) -> Self {
-        Self {
-            target,
-            release,
-            project_provider,
-        }
+    pub fn new(project_provider: Rc<dyn ProjectProvider>) -> Self {
+        Self { project_provider }
     }
 
     fn clean(&self) -> Result<()> {
@@ -88,8 +77,12 @@ impl BuildProvider for DefaultDeploy {
             proc.arg(value);
         }
 
-        proc.args(["build", "--target", &self.target.to_string()]);
-        if self.release {
+        proc.args([
+            "build",
+            "--target",
+            &self.project_provider.get_target().to_string(),
+        ]);
+        if self.project_provider.is_release() {
             proc.arg("--release");
         }
 
@@ -103,7 +96,7 @@ impl BuildProvider for DefaultDeploy {
     }
 }
 
-impl ModulePropProvider for DefaultDeploy {
+impl DefaultDeploy {
     fn write_module_prop(&self, content: &str) -> Result<()> {
         let mut module_prop_path = self.project_provider.get_target_path()?.join("magisk");
         module_prop_path.push("module.prop");

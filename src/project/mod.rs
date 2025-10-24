@@ -14,6 +14,8 @@ use clap::ValueEnum;
 pub trait ProjectProvider: Debug {
     fn get_project_path(&self) -> Result<PathBuf>;
     fn get_target_path(&self) -> Result<PathBuf>;
+    fn get_target(&self) -> &Target;
+    fn is_release(&self) -> bool;
 }
 
 pub trait ManifestProvider: Debug {
@@ -54,6 +56,14 @@ impl ProjectProvider for DefaultProject {
         result.push(build_type);
         Ok(result)
     }
+
+    fn get_target(&self) -> &Target {
+        &self.target
+    }
+
+    fn is_release(&self) -> bool {
+        self.release
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -89,7 +99,7 @@ pub enum Target {
     ArmeabiV7a,
     #[value(name = "x86_64-linux-android", alias = "x64_64")]
     X86_64,
-    #[value(name = "x86_64-linux-android", alias = "x86")]
+    #[value(name = "i686-linux-android", alias = "x86")]
     X86,
 }
 

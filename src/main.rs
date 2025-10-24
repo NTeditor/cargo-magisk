@@ -59,7 +59,7 @@ fn build_cmd(target: Target, release: bool, cargo_build: Option<String>) -> Resu
         manifest_provider.clone(),
     ));
     let config = Config::load(&manifest_provider, &project_provider)?;
-    let deploy = DefaultDeploy::new(target, release, project_provider);
+    let deploy = DefaultDeploy::new(project_provider);
 
     deploy.build(cargo_build)?;
     deploy.deploy(&config)?;
