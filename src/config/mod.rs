@@ -99,10 +99,10 @@ impl ModuleProp {
             }
             let type_str = identifiers[0];
             let release_type = ReleaseType::try_from(type_str)?;
-            version_code += release_type as u64;
+            version_code += release_type as u64 * 100;
             if let Some(value) = identifiers.get(1) {
                 let pre_code: u64 = value.parse().context("Pre-release number not u64")?;
-                version_code += pre_code * 100;
+                version_code += pre_code;
             }
         }
         Ok((ver.to_string(), version_code))
