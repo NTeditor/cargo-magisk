@@ -8,11 +8,11 @@ use std::process::Command;
 use std::rc::Rc;
 
 pub trait DeployProvider: Debug {
-    fn deploy(&self, assets: &Config) -> Result<()>;
+    fn deploy(&self, config: &Config) -> Result<()>;
 }
 
 pub trait BuildProvider: Debug {
-    fn build(&self, cargo_build: Option<&str>) -> Result<()>;
+    fn build(&self, cargo_build: Option<String>) -> Result<()>;
 }
 
 pub trait ModulePropProvider {
@@ -82,7 +82,7 @@ impl DeployProvider for DefaultDeploy {
 }
 
 impl BuildProvider for DefaultDeploy {
-    fn build(&self, cargo_build: Option<&str>) -> Result<()> {
+    fn build(&self, cargo_build: Option<String>) -> Result<()> {
         let mut proc = Command::new("cargo");
         if let Some(value) = cargo_build {
             proc.arg(value);
@@ -93,8 +93,12 @@ impl BuildProvider for DefaultDeploy {
             proc.arg("--release");
         }
 
+        println!("Building..");
+        println!("---------------------");
         let mut child = proc.spawn()?;
         child.wait()?;
+        println!("---------------------");
+        println!("Done");
         Ok(())
     }
 }

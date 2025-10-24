@@ -14,8 +14,8 @@ pub struct Config {
 
 impl Config {
     pub fn load(
-        manifest_provider: Rc<dyn ManifestProvider>,
-        project_provider: Rc<dyn ProjectProvider>,
+        manifest_provider: &Rc<dyn ManifestProvider>,
+        project_provider: &Rc<dyn ProjectProvider>,
     ) -> Result<Self> {
         let manifest_path = manifest_provider.find_manifest_path()?;
         let manifest_content = fs::read_to_string(manifest_path)?;
@@ -31,7 +31,7 @@ impl Config {
 
         let mut assets: Vec<Asset> = vec![];
         for asset in config.package.metadata.magisk.assets {
-            assets.push(Asset::try_new(asset.source, asset.dest, &project_provider)?);
+            assets.push(Asset::try_new(asset.source, asset.dest, project_provider)?);
         }
 
         Ok(Self {

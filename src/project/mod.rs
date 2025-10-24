@@ -9,6 +9,7 @@ use std::{
 };
 
 use anyhow::{Ok, Result, bail};
+use clap::ValueEnum;
 
 pub trait ProjectProvider: Debug {
     fn get_project_path(&self) -> Result<PathBuf>;
@@ -80,42 +81,23 @@ impl ManifestProvider for DefaultManifest {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, ValueEnum)]
 pub enum Target {
+    #[value(name = "aarch64-linux-android", alias = "arm64-v8a")]
     Arm64V8a,
+    #[value(name = "armv7-linux-androideabi", alias = "armeabi-v7a")]
     ArmeabiV7a,
+    #[value(name = "x86_64-linux-android", alias = "x64_64")]
     X86_64,
+    #[value(name = "x86_64-linux-android", alias = "x86")]
     X86,
-}
-
-impl Target {
-    pub const ARM64_V8A_STR: &str = "aarch64-linux-android";
-    pub const ARMEABI_V7A_STR: &str = "armv7-linux-androideabi";
-    pub const X86_64_STR: &str = "x86_64-linux-android";
-    pub const X86_STR: &str = "i686-linux-android";
 }
 
 impl Display for Target {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let result = match self {
-            Self::Arm64V8a => Self::ARM64_V8A_STR,
-            Self::ArmeabiV7a => Self::ARMEABI_V7A_STR,
-            Self::X86_64 => Self::X86_64_STR,
-            Self::X86 => Self::X86_STR,
-        };
-        write!(f, "{}", result)
-    }
-}
-
-impl TryFrom<&str> for Target {
-    type Error = anyhow::Error;
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        match value {
-            Self::ARM64_V8A_STR => Ok(Self::Arm64V8a),
-            Self::ARMEABI_V7A_STR => Ok(Self::ArmeabiV7a),
-            Self::X86_64_STR => Ok(Self::X86_64),
-            Self::X86_STR => Ok(Self::X86),
-            _ => bail!("Invaid target"),
+        match self.to_possible_value() {
+            Some(value) => write!(f, "{}", value.get_name()),
+            None => Err(std::fmt::Error),
         }
     }
 }

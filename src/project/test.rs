@@ -4,26 +4,6 @@ use super::*;
 use rstest::rstest;
 
 #[rstest]
-#[case(Target::ARM64_V8A_STR, Target::Arm64V8a)]
-#[case(Target::ARMEABI_V7A_STR, Target::ArmeabiV7a)]
-#[case(Target::X86_64_STR, Target::X86_64)]
-#[case(Target::X86_STR, Target::X86)]
-fn target_enum_from(#[case] target_string: &str, #[case] expected: Target) {
-    let target = Target::try_from(target_string).unwrap();
-    assert_eq!(target, expected);
-}
-
-#[rstest]
-#[case(Target::Arm64V8a, Target::ARM64_V8A_STR)]
-#[case(Target::ArmeabiV7a, Target::ARMEABI_V7A_STR)]
-#[case(Target::X86_64, Target::X86_64_STR)]
-#[case(Target::X86, Target::X86_STR)]
-fn target_enum_to_string(#[case] target: Target, #[case] expected: &str) {
-    let target_str = target.to_string();
-    assert_eq!(&target_str, expected);
-}
-
-#[rstest]
 #[case(Path::new("/workspace"))]
 fn default_project_get_project_path(#[case] expected: &Path) {
     let provider = Rc::new(MockManifest {});
