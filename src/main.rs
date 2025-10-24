@@ -8,7 +8,7 @@ use std::{env, rc::Rc};
 
 use crate::{
     config::Config,
-    deploy::{BuildProvider, DefaultDeploy, DeployProvider},
+    deploy::{DefaultDeploy, Deploy},
     project::{DefaultManifest, DefaultProject, ManifestProvider, ProjectProvider, Target},
 };
 
@@ -54,14 +54,13 @@ fn main() -> Result<()> {
 fn build_cmd(target: Target, release: bool, cargo_build: Option<String>) -> Result<()> {
     let manifest_provider: Rc<dyn ManifestProvider> = Rc::new(DefaultManifest::new());
     let project_provider: Rc<dyn ProjectProvider> = Rc::new(DefaultProject::new(
-        target.clone(),
+        target,
         release,
         manifest_provider.clone(),
     ));
     let config = Config::load(&manifest_provider, &project_provider)?;
-    let deploy = DefaultDeploy::new(project_provider);
+    let deploy = DefaultDeploy::new(project_provider, cargo_build);
 
-    deploy.build(cargo_build)?;
     deploy.deploy(&config)?;
 
     Ok(())

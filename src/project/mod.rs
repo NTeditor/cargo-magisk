@@ -97,7 +97,7 @@ pub enum Target {
     Arm64V8a,
     #[value(name = "armv7-linux-androideabi", alias = "armeabi-v7a")]
     ArmeabiV7a,
-    #[value(name = "x86_64-linux-android", alias = "x64_64")]
+    #[value(name = "x86_64-linux-android", alias = "x86_64")]
     X86_64,
     #[value(name = "i686-linux-android", alias = "x86")]
     X86,

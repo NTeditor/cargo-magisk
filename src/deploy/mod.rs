@@ -1,27 +1,34 @@
 use crate::config::Config;
-use crate::project::ProjectProvider;
+use crate::project::{ProjectProvider, Target};
 use anyhow::{Result, bail};
 use std::fmt::Debug;
 use std::fs;
 use std::process::Command;
 use std::rc::Rc;
 
-pub trait DeployProvider: Debug {
+pub trait Deploy: Debug {
     fn deploy(&self, config: &Config) -> Result<()>;
 }
 
-pub trait BuildProvider: Debug {
-    fn build(&self, cargo_build: Option<String>) -> Result<()>;
+trait Build: Debug {
+    fn build(&self, target: &Target, release: bool, cargo_build: Option<String>) -> Result<()>;
 }
 
 #[derive(Debug)]
 pub struct DefaultDeploy {
+    cargo_build: Option<String>,
     project_provider: Rc<dyn ProjectProvider>,
+    build: Box<dyn Build>,
 }
 
 impl DefaultDeploy {
-    pub fn new(project_provider: Rc<dyn ProjectProvider>) -> Self {
-        Self { project_provider }
+    pub fn new(project_provider: Rc<dyn ProjectProvider>, cargo_build: Option<String>) -> Self {
+        let build: Box<dyn Build> = Box::new(BuildShell::new());
+        Self {
+            cargo_build,
+            project_provider,
+            build,
+        }
     }
 
     fn clean(&self) -> Result<()> {
@@ -35,9 +42,14 @@ impl DefaultDeploy {
     }
 }
 
-impl DeployProvider for DefaultDeploy {
+impl Deploy for DefaultDeploy {
     fn deploy(&self, config: &Config) -> Result<()> {
         self.clean()?;
+        self.build.build(
+            self.project_provider.get_target(),
+            self.project_provider.is_release(),
+            self.cargo_build.clone(),
+        )?;
         for asset in &config.assets {
             let source = &asset.source;
             let dest = &asset.dest;
@@ -70,19 +82,32 @@ impl DeployProvider for DefaultDeploy {
     }
 }
 
-impl BuildProvider for DefaultDeploy {
-    fn build(&self, cargo_build: Option<String>) -> Result<()> {
+impl DefaultDeploy {
+    fn write_module_prop(&self, content: &str) -> Result<()> {
+        let mut module_prop_path = self.project_provider.get_target_path()?.join("magisk");
+        module_prop_path.push("module.prop");
+        fs::write(module_prop_path, content)?;
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+struct BuildShell;
+impl BuildShell {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl Build for BuildShell {
+    fn build(&self, target: &Target, release: bool, cargo_build: Option<String>) -> Result<()> {
         let mut proc = Command::new("cargo");
         if let Some(value) = cargo_build {
             proc.arg(value);
         }
 
-        proc.args([
-            "build",
-            "--target",
-            &self.project_provider.get_target().to_string(),
-        ]);
-        if self.project_provider.is_release() {
+        proc.args(["build", "--target", &target.to_string()]);
+        if release {
             proc.arg("--release");
         }
 
@@ -92,15 +117,6 @@ impl BuildProvider for DefaultDeploy {
         child.wait()?;
         println!("---------------------");
         println!("Done");
-        Ok(())
-    }
-}
-
-impl DefaultDeploy {
-    fn write_module_prop(&self, content: &str) -> Result<()> {
-        let mut module_prop_path = self.project_provider.get_target_path()?.join("magisk");
-        module_prop_path.push("module.prop");
-        fs::write(module_prop_path, content)?;
         Ok(())
     }
 }
