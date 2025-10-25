@@ -3,13 +3,16 @@ mod test;
 mod toml_types;
 mod version_code;
 
-use crate::{
-    config::version_code::VersionCode,
-    project::{ManifestProvider, ProjectProvider},
-};
+use crate::project::{ManifestProvider, ProjectProvider};
 use anyhow::{Context, Result, bail};
 use regex::Regex;
-use std::{fmt::Display, fs, path::PathBuf, rc::Rc};
+use std::{
+    fmt::Display,
+    fs,
+    path::{Component, Path, PathBuf},
+    rc::Rc,
+};
+use version_code::VersionCode;
 
 #[derive(Debug)]
 pub struct Config {
@@ -41,8 +44,10 @@ impl Config {
         manifest_path: PathBuf,
         project_provider: &Rc<dyn ProjectProvider>,
     ) -> Result<Self> {
-        let manifest_content = fs::read_to_string(manifest_path)?;
-        let config: toml_types::Manifest = toml::from_str(&manifest_content)?;
+        let manifest_content =
+            fs::read_to_string(manifest_path).context("Failed read Cargo.toml")?;
+        let config: toml_types::Manifest =
+            toml::from_str(&manifest_content).context("Invalid Cargo.toml: failed parse")?;
 
         let module_prop = ModuleProp::new(
             config.package.metadata.magisk.id,
@@ -74,12 +79,12 @@ pub struct ModuleProp {
 impl ModuleProp {
     pub fn new(id: String, name: String, version: String, author: String) -> Result<Self> {
         Self::validate(&id, &name, &version, &author)?;
-        let (version_valid, version_code) = Self::parse_version(&version)?;
+        let version_code = VersionCode::try_from(version.as_str())?;
 
         Ok(Self {
             id,
             name,
-            version: version_valid,
+            version,
             version_code,
             author,
         })
@@ -108,12 +113,6 @@ impl ModuleProp {
         }
 
         Ok(())
-    }
-
-    fn parse_version(version: &str) -> Result<(String, VersionCode)> {
-        let version_code = VersionCode::try_from(version)?;
-        let version_string = version.to_string();
-        Ok((version_string, version_code))
     }
 }
 
@@ -152,19 +151,23 @@ impl Asset {
         if source.is_empty() {
             bail!("Invalid source: value is empty");
         }
-        let result = match source.starts_with("target") {
-            true => {
+
+        let source_path = Path::new(&source);
+        Self::check_path(source_path, "source")?;
+
+        let result = match source_path.strip_prefix("target") {
+            Ok(value) => {
                 let mut target_path = provider.get_target_path()?;
-                let source_replaced = source.replace("target/", "");
-                target_path.push(source_replaced);
+                target_path.push(value);
                 target_path
             }
-            false => {
+            Err(_) => {
                 let mut project_path = provider.get_project_path()?;
-                project_path.push(source);
+                project_path.push(source_path);
                 project_path
             }
         };
+
         Ok(result)
     }
 
@@ -172,9 +175,31 @@ impl Asset {
         if dest.is_empty() {
             bail!("Invalid dest: value is empty");
         }
+
+        let dest_path = Path::new(&dest);
+        Self::check_path(dest_path, "dest")?;
+
         let mut target_path = provider.get_target_path()?;
         target_path.push("magisk");
-        target_path.push(dest);
+        target_path.push(dest_path);
         Ok(target_path)
+    }
+
+    fn check_path(path: &Path, label: &str) -> Result<()> {
+        if path.is_absolute() {
+            bail!("Invalid {}: path is absolute", label);
+        }
+
+        for comp in path.components() {
+            match comp {
+                Component::ParentDir => bail!("Invalid {}: contains '..'", label),
+                Component::CurDir => bail!("Invalid {}: contains '.'", label),
+                Component::Normal(name) if name == "..." => {
+                    bail!("Invalid {}: contains '...'", label)
+                }
+                _ => {}
+            }
+        }
+        Ok(())
     }
 }

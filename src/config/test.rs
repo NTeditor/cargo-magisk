@@ -48,7 +48,20 @@ fn get_expected_parse_dest(dest: &str) -> PathBuf {
 }
 
 #[rstest]
-fn asset_parse_source_err(#[values("")] source: String, project_provider: Rc<dyn ProjectProvider>) {
+fn asset_parse_source_err(
+    #[values(
+        "",
+        "target/../asset/customize.sh",
+        "target/.../asset/customize.sh",
+        "./target/cargo-magisk",
+        "./../cargo-magisk",
+        ".",
+        "..",
+        "..."
+    )]
+    source: String,
+    project_provider: Rc<dyn ProjectProvider>,
+) {
     let source_path = Asset::parse_source(source.clone(), &project_provider);
     assert!(
         source_path.is_err(),
@@ -58,7 +71,20 @@ fn asset_parse_source_err(#[values("")] source: String, project_provider: Rc<dyn
 }
 
 #[rstest]
-fn asset_parse_dest_err(#[values("")] dest: String, project_provider: Rc<dyn ProjectProvider>) {
+fn asset_parse_dest_err(
+    #[values(
+        "",
+        "../customize.sh",
+        "./system/./bin/cargo-magisk",
+        "./system/.../bin/cargo-magisk",
+        "./../cargo-magisk",
+        ".",
+        "..",
+        "..."
+    )]
+    dest: String,
+    project_provider: Rc<dyn ProjectProvider>,
+) {
     let dest_path = Asset::parse_dest(dest.clone(), &project_provider);
     assert!(
         dest_path.is_err(),

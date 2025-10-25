@@ -12,7 +12,7 @@ use rstest::rstest;
 #[case("2.5.10-beta.5", [0, 2, 0, 5, 1, 0, 2, 0, 5])]
 #[case("99.99.99", [9, 9, 9, 9, 9, 9, 9, 0, 0])]
 #[case("99.99.99-rc.99", [9, 9, 9, 9, 9, 9, 3, 9, 9])]
-fn module_prop_parse_version(#[case] version_str: &str, #[case] expected: [u8; 9]) {
+fn version_code_from_str(#[case] version_str: &str, #[case] expected: [u8; 9]) {
     let version_code = VersionCode::try_from(version_str).unwrap();
     assert_eq!(version_code.0, expected);
 }
@@ -27,7 +27,7 @@ fn module_prop_parse_version(#[case] version_str: &str, #[case] expected: [u8; 9
 #[case("100.0.0")]
 #[case("")]
 #[case("1.0.0-stable.1")]
-fn module_prop_parse_version_err(#[case] version_str: &str) {
+fn version_code_from_str_err(#[case] version_str: &str) {
     let result = VersionCode::try_from(version_str);
     assert!(
         result.is_err(),
