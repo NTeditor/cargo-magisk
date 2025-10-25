@@ -4,7 +4,7 @@ mod project;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use std::{env, rc::Rc};
+use std::{env, path::PathBuf, rc::Rc};
 
 use crate::{
     config::Config,
@@ -28,6 +28,8 @@ enum Commands {
         release: bool,
         #[clap(long)]
         cargo_build: Option<String>,
+        #[clap(long)]
+        manifest_path: Option<PathBuf>,
     },
 }
 
@@ -44,21 +46,30 @@ fn main() -> Result<()> {
             target,
             release,
             cargo_build,
+            manifest_path,
         } => {
-            build_cmd(target, release, cargo_build)?;
+            build_cmd(target, release, cargo_build, manifest_path)?;
         }
     }
     Ok(())
 }
 
-fn build_cmd(target: Target, release: bool, cargo_build: Option<String>) -> Result<()> {
+fn build_cmd(
+    target: Target,
+    release: bool,
+    cargo_build: Option<String>,
+    manifest_path: Option<PathBuf>,
+) -> Result<()> {
     let manifest_provider: Rc<dyn ManifestProvider> = Rc::new(DefaultManifest::new());
     let project_provider: Rc<dyn ProjectProvider> = Rc::new(DefaultProject::new(
         target,
         release,
         manifest_provider.clone(),
     ));
-    let config = Config::load(&manifest_provider, &project_provider)?;
+    let config = match manifest_path {
+        Some(value) => Config::load_with_path(value, &project_provider)?,
+        None => Config::load(&manifest_provider, &project_provider)?,
+    };
     let deploy = DefaultDeploy::new(project_provider, cargo_build);
 
     deploy.deploy(&config)?;

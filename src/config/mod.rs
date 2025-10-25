@@ -1,8 +1,12 @@
 #[cfg(test)]
 mod test;
 mod toml_types;
+mod version_code;
 
-use crate::project::{ManifestProvider, ProjectProvider};
+use crate::{
+    config::version_code::VersionCode,
+    project::{ManifestProvider, ProjectProvider},
+};
 use anyhow::{Context, Result, bail};
 use regex::Regex;
 use std::{fmt::Display, fs, path::PathBuf, rc::Rc};
@@ -19,6 +23,24 @@ impl Config {
         project_provider: &Rc<dyn ProjectProvider>,
     ) -> Result<Self> {
         let manifest_path = manifest_provider.find_manifest_path()?;
+        Self::load_with_path_unchecked(manifest_path, project_provider)
+    }
+
+    pub fn load_with_path(
+        manifest_path: PathBuf,
+        project_provider: &Rc<dyn ProjectProvider>,
+    ) -> Result<Self> {
+        if !manifest_path.exists() {
+            bail!("Invalid manifest path: file not exists");
+        }
+
+        Self::load_with_path_unchecked(manifest_path, project_provider)
+    }
+
+    fn load_with_path_unchecked(
+        manifest_path: PathBuf,
+        project_provider: &Rc<dyn ProjectProvider>,
+    ) -> Result<Self> {
         let manifest_content = fs::read_to_string(manifest_path)?;
         let config: toml_types::Manifest = toml::from_str(&manifest_content)?;
 
@@ -45,16 +67,11 @@ pub struct ModuleProp {
     pub id: String,
     pub name: String,
     pub version: String,
-    pub version_code: u64,
+    pub version_code: VersionCode,
     pub author: String,
 }
 
 impl ModuleProp {
-    const VERSION_MAJOR_FACTOR: u64 = 10_000_000;
-    const VERSION_MINOR_FACTOR: u64 = 100_000;
-    const VERSION_PATCH_FACTOR: u64 = 1_000;
-    const VERSION_RELEASE_TYPE_FACTOR: u64 = 100;
-
     pub fn new(id: String, name: String, version: String, author: String) -> Result<Self> {
         Self::validate(&id, &name, &version, &author)?;
         let (version_valid, version_code) = Self::parse_version(&version)?;
@@ -93,59 +110,22 @@ impl ModuleProp {
         Ok(())
     }
 
-    fn parse_version(version: &str) -> Result<(String, u64)> {
-        let re = Regex::new(
-            r"^(?P<major>\d{1,2})\.(?P<minor>\d{1,2})\.(?P<patch>\d{1,2})(?:-(?P<pre_type>alpha|beta|rc)(?:\.(?P<pre_code>\d{1,2}))?)?$",
-        )?;
-
-        let caps = re.captures(version).context("Invalid version format")?;
-        let major: u64 = caps["major"].parse().context("Invalid major version")?;
-        let minor: u64 = caps["minor"].parse().context("Invalid minor version")?;
-        let patch: u64 = caps["patch"].parse().context("Invalid patch version")?;
-        let mut version_code = 0;
-        if major < 10 {
-            version_code += major * (Self::VERSION_MAJOR_FACTOR * 10);
-        } else {
-            version_code += major * Self::VERSION_MAJOR_FACTOR;
-        }
-        if minor < 10 {
-            version_code += minor * (Self::VERSION_MINOR_FACTOR * 10);
-        } else {
-            version_code += minor * Self::VERSION_MINOR_FACTOR;
-        }
-        if patch < 10 {
-            version_code += patch * (Self::VERSION_PATCH_FACTOR * 10);
-        } else {
-            version_code += patch * Self::VERSION_PATCH_FACTOR;
-        }
-
-        if let Some(pre_type_str) = caps.name("pre_type") {
-            let pre_type =
-                ReleaseType::try_from(pre_type_str.as_str()).context("Invalid pre-type")?;
-            version_code += pre_type as u64 * Self::VERSION_RELEASE_TYPE_FACTOR;
-
-            if let Some(pre_code_str) = caps.name("pre_code") {
-                let pre_code: u64 = pre_code_str.as_str().parse().context("Invalid pre-type")?;
-                version_code += pre_code;
-            }
-        } else {
-            let pre_type = ReleaseType::Stable;
-            version_code += pre_type as u64 * Self::VERSION_RELEASE_TYPE_FACTOR;
-        }
-
-        Ok((version.to_string(), version_code))
+    fn parse_version(version: &str) -> Result<(String, VersionCode)> {
+        let version_code = VersionCode::try_from(version)?;
+        let version_string = version.to_string();
+        Ok((version_string, version_code))
     }
 }
 
 impl Display for ModuleProp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
+        writeln!(
             f,
             "id={}\n\
              name={}\n\
              author={}\n\
              version={}\n\
-             versionCode={}\n",
+             versionCode={}",
             self.id, self.name, self.author, self.version, self.version_code
         )
     }
@@ -196,27 +176,5 @@ impl Asset {
         target_path.push("magisk");
         target_path.push(dest);
         Ok(target_path)
-    }
-}
-
-#[derive(Debug)]
-#[repr(u64)]
-enum ReleaseType {
-    Alpha = 1,
-    Beta = 2,
-    Rc = 3,
-    Stable = 9,
-}
-
-impl TryFrom<&str> for ReleaseType {
-    type Error = anyhow::Error;
-
-    fn try_from(name: &str) -> Result<Self, Self::Error> {
-        match name {
-            "alpha" => Ok(ReleaseType::Alpha),
-            "beta" => Ok(ReleaseType::Beta),
-            "rc" => Ok(ReleaseType::Rc),
-            _ => bail!("Invalid build type: {}", name),
-        }
     }
 }

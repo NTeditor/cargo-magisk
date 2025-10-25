@@ -103,41 +103,6 @@ fn module_prop_validate_err(
     );
 }
 
-#[rstest]
-#[case("1.0.1", 100010_900)]
-#[case("1.0.1-alpha.1", 100010_101)]
-#[case("1.0.0", 100000_900)]
-#[case("1.0.0-alpha.1", 100000_101)]
-#[case("1.0.0-beta.1", 100000_201)]
-#[case("1.0.0-rc.1", 100000_301)]
-#[case("2.5.10", 205010_900)]
-#[case("2.5.10-beta.5", 205010_205)]
-#[case("99.99.99", 999999_900)]
-#[case("99.99.99-rc.99", 999999_399)]
-fn module_prop_parse_version(#[case] version_str: &str, #[case] expected: u64) {
-    let (_, version_code) = ModuleProp::parse_version(version_str).unwrap();
-    assert_eq!(version_code, expected);
-}
-
-#[rstest]
-#[case("999.999.999")]
-#[case("1.0")]
-#[case("1.0.0.1")]
-#[case("1.0.0-invalid.1")]
-#[case("a.b.c")]
-#[case("1.0.0-alpha.100")]
-#[case("100.0.0")]
-#[case("")]
-#[case("1.0.0-stable.1")]
-fn module_prop_parse_version_err(#[case] version_str: &str) {
-    let result = ModuleProp::parse_version(version_str);
-    assert!(
-        result.is_err(),
-        "result.is_err() is not true. version_str: '{}'",
-        version_str,
-    )
-}
-
 #[fixture]
 fn project_provider() -> Rc<dyn ProjectProvider> {
     Rc::new(MockProject {})
