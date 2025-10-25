@@ -50,9 +50,9 @@ pub struct ModuleProp {
 }
 
 impl ModuleProp {
-    const VERSION_MAJOR_FACTOR: u64 = 100_000_000;
-    const VERSION_MINOR_FACTOR: u64 = 1_000_000;
-    const VERSION_PATCH_FACTOR: u64 = 10_000;
+    const VERSION_MAJOR_FACTOR: u64 = 10_000_000;
+    const VERSION_MINOR_FACTOR: u64 = 100_000;
+    const VERSION_PATCH_FACTOR: u64 = 1_000;
     const VERSION_RELEASE_TYPE_FACTOR: u64 = 100;
 
     pub fn new(id: String, name: String, version: String, author: String) -> Result<Self> {
@@ -86,12 +86,6 @@ impl ModuleProp {
             bail!("Invalid version: value is empty");
         }
 
-        let re_version =
-            Regex::new(r"^([0-9]|[1-9]\d)\.([0-9]|[1-9]\d)\.([0-9]|[1-9]\d)(?:-([\w.-]+))?$")?;
-        if !re_version.is_match(version) {
-            bail!("Invalid version: unsupported format");
-        }
-
         if author.is_empty() {
             bail!("Invalid author: value is empty");
         }
@@ -108,22 +102,35 @@ impl ModuleProp {
         let major: u64 = caps["major"].parse().context("Invalid major version")?;
         let minor: u64 = caps["minor"].parse().context("Invalid minor version")?;
         let patch: u64 = caps["patch"].parse().context("Invalid patch version")?;
-        let mut version_code = major * Self::VERSION_MAJOR_FACTOR
-            + minor * Self::VERSION_MINOR_FACTOR
-            + patch * Self::VERSION_PATCH_FACTOR;
+        let mut version_code = 0;
+        if major < 10 {
+            version_code += major * (Self::VERSION_MAJOR_FACTOR * 10);
+        } else {
+            version_code += major * Self::VERSION_MAJOR_FACTOR;
+        }
+        if minor < 10 {
+            version_code += minor * (Self::VERSION_MINOR_FACTOR * 10);
+        } else {
+            version_code += minor * Self::VERSION_MINOR_FACTOR;
+        }
+        if patch < 10 {
+            version_code += patch * (Self::VERSION_PATCH_FACTOR * 10);
+        } else {
+            version_code += patch * Self::VERSION_PATCH_FACTOR;
+        }
 
         if let Some(pre_type_str) = caps.name("pre_type") {
             let pre_type =
                 ReleaseType::try_from(pre_type_str.as_str()).context("Invalid pre-type")?;
             version_code += pre_type as u64 * Self::VERSION_RELEASE_TYPE_FACTOR;
+
+            if let Some(pre_code_str) = caps.name("pre_code") {
+                let pre_code: u64 = pre_code_str.as_str().parse().context("Invalid pre-type")?;
+                version_code += pre_code;
+            }
         } else {
             let pre_type = ReleaseType::Stable;
             version_code += pre_type as u64 * Self::VERSION_RELEASE_TYPE_FACTOR;
-        }
-
-        if let Some(pre_code_str) = caps.name("pre_code") {
-            let pre_code: u64 = pre_code_str.as_str().parse().context("Invalid pre-type")?;
-            version_code += pre_code;
         }
 
         Ok((version.to_string(), version_code))
